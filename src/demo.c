@@ -86,22 +86,28 @@ void *detect_in_thread(void *ptr)
 
     layer l = net.layers[net.n-1];
     float *X = det_s.data;
+#define WORK
+#ifdef WORK
     float *prediction = network_predict(net, X);
 
     memcpy(predictions[demo_index], prediction, l.outputs*sizeof(float));
     mean_arrays(predictions, FRAMES, l.outputs, avg);
+#endif
     l.output = avg;
 
     free_image(det_s);
 
     int nboxes = 0;
     detection *dets = NULL;
+
+#ifdef WORK
     if (letter_box)
         dets = get_network_boxes(&net, in_img->width, in_img->height, demo_thresh, demo_thresh, 0, 1, &nboxes, 1); // letter box
     else
         dets = get_network_boxes(&net, det_s.w, det_s.h, demo_thresh, demo_thresh, 0, 1, &nboxes, 0); // resized
     //if (nms) do_nms_obj(dets, nboxes, l.classes, nms);    // bad results
     if (nms) do_nms_sort(dets, nboxes, l.classes, nms);
+#endif
 
 
     printf("\033[2J");
@@ -113,7 +119,9 @@ void *detect_in_thread(void *ptr)
     det_img = ipl_images[(demo_index + FRAMES / 2 + 1) % FRAMES];
     demo_index = (demo_index + 1)%FRAMES;
 
+#ifdef WORK
     draw_detections_cv_v3(det_img, dets, nboxes, demo_thresh, demo_names, demo_alphabet, demo_classes, demo_ext_output);
+#endif
     free_detections(dets, nboxes);
 
     return 0;
@@ -235,7 +243,7 @@ void demo(char *cfgfile, char *weightfile, float thresh, float hier_thresh, int 
 
     while(1){
         ++count;
-        if(1){
+        if(0){   // xavim (was 1)
             if(pthread_create(&fetch_thread, 0, fetch_in_thread, 0)) error("Thread creation failed");
             if(pthread_create(&detect_thread, 0, detect_in_thread, 0)) error("Thread creation failed");
 

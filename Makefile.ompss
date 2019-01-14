@@ -2,10 +2,10 @@ GPU=0
 CUDNN=0
 CUDNN_HALF=0
 OPENCV=1
-AVX=1
+AVX=0
 OPENMP=0
 OMPSS=1
-LIBSO=0
+LIBSO=1
 
 # set GPU=1 and CUDNN=1 to speedup on GPU
 # set CUDNN_HALF=1 to further speedup 3 x times (Mixed-precision using Tensor Cores) on GPU Tesla V100, Titan V, DGX-2
@@ -78,7 +78,7 @@ LDFLAGS+= -lgomp
 endif
 
 ifeq ($(OMPSS), 1)
-MCCFLAGS+=-k --ompss
+MCCFLAGS+=-k --ompss --debug
 endif
 
 ifeq ($(GPU), 1)
@@ -122,21 +122,34 @@ all: obj backup results $(EXEC) $(LIBNAMESO) $(APPNAMESO)
 ifeq ($(LIBSO), 1) 
 CFLAGS+= -fPIC
 
-$(LIBNAMESO): $(OBJS) src/yolo_v2_class.hpp src/yolo_v2_class.cpp
-	$(CPP) -shared -std=c++11 -fvisibility=hidden -DYOLODLL_EXPORTS $(COMMON) $(CFLAGS) $(OBJS) src/yolo_v2_class.cpp -o $@ $(LDFLAGS)
+$(OBJDIR)/yolo_v2_class.o: src/yolo_v2_class.hpp src/yolo_v2_class.cpp
+	g++ -c -std=c++11 -DYOLODLL_EXPORTS $(COMMON) $(CFLAGS) $(OBJS) src/yolo_v2_class.cpp -o $@ 
+#	g++ -c -std=c++11 -fvisibility=hidden -DYOLODLL_EXPORTS $(COMMON) $(CFLAGS) $(OBJS) src/yolo_v2_class.cpp -o $@ 
+
+$(LIBNAMESO): $(OBJS) $(OBJDIR)/yolo_v2_class.o
+	$(CPP) -shared -std=c++11 -DYOLODLL_EXPORTS $(MCCFLAGS) $(COMMON) $(CFLAGS) $(OBJS) $(OBJDIR)/yolo_v2_class.o -o $@ $(LDFLAGS)
+#	$(CPP) -shared -std=c++11 -fvisibility=hidden -DYOLODLL_EXPORTS $(COMMON) $(CFLAGS) $(OBJS) src/yolo_v2_class.cpp -o $@ $(LDFLAGS)
+
+$(OBJDIR)/yolo_console_dll.o: src/yolo_v2_class.hpp src/yolo_console_dll.cpp
+	g++ -c -std=c++11 $(COMMON) $(CFLAGS) -o $@ src/yolo_console_dll.cpp
 	
-$(APPNAMESO): $(LIBNAMESO) src/yolo_v2_class.hpp src/yolo_console_dll.cpp
-	$(CPP) -std=c++11 $(COMMON) $(CFLAGS) -o $@ src/yolo_console_dll.cpp $(LDFLAGS) -L ./ -l:$(LIBNAMESO)
+$(APPNAMESO): $(LIBNAMESO) $(OBJDIR)/yolo_console_dll.o
+	$(CPP) -std=c++11 $(MCCFLAGS) $(COMMON) $(CFLAGS) -o $@ $(OBJDIR)/yolo_console_dll.o $(LDFLAGS) -L ./ -l:$(LIBNAMESO)
+#	$(CPP) -std=c++11 $(COMMON) $(CFLAGS) -o $@ src/yolo_console_dll.cpp $(LDFLAGS) -L ./ -l:$(LIBNAMESO)
 endif
 
+
+
 $(EXEC): $(OBJS)
-	$(CPP) $(MCCFLAGS) $(COMMON) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	$(CPP) -std=c++11 $(MCCFLAGS) $(COMMON) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+#	$(CPP) -std=c++11 $(MCCFLAGS) $(COMMON) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 $(OBJDIR)%.o: %.c $(DEPS)
 	$(CC) $(MCCFLAGS) $(COMMON) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR)%.o: %.cpp $(DEPS)
-	$(CPP) $(MCCFLAGS) $(COMMON) $(CFLAGS) -c $< -o $@
+	$(CPP) -std=c++03 $(MCCFLAGS) $(COMMON) $(CFLAGS) -c $< -o $@
+#	$(CPP) -std=c++11 $(MCCFLAGS) $(COMMON) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR)%.o: %.cu $(DEPS)
 	$(NVCC) $(ARCH) $(COMMON) --compiler-options "$(CFLAGS)" -c $< -o $@

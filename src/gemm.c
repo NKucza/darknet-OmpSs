@@ -2049,8 +2049,25 @@ void gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA,
         }
     }
 
+
+    int admitted = 0;
+
+#ifdef DEBUG
+      printf ("Checking thread admission (%d iterations)\n", M);
+      printf ("Thread %d\n", omp_get_thread_num());
+#endif
+
+#ifdef ADMIT_EXPELL
+    if (omp_get_thread_num() < 0) {
+      nanos_admit_current_thread();
+      admitted = 1;
+      printf ("Thread admitted\n");
+    }
+#endif
+
     int t;
-    #pragma omp parallel for
+    //#pragma omp parallel for schedule(ompss_static)
+    #pragma omp taskloop num_tasks(8)
     for (t = 0; t < M; ++t) {
         if (!TA && !TB)
             gemm_nn(1, N, K, ALPHA, A + t*lda, lda, B, ldb, C + t*ldc, ldc);
@@ -2061,6 +2078,17 @@ void gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA,
         else
             gemm_tt(1, N, K, ALPHA, A + t, lda, B, ldb, C + t*ldc, ldc);
     }
+
+#ifdef DEBUG
+    printf ("Loop ended\n");
+#endif
+
+#ifdef ADMIT_EXPELL
+    if (admitted) { 
+       nanos_expel_current_thread();
+       printf ("Thread expelled\n");
+    }
+#endif
 }
 
 #ifdef GPU
