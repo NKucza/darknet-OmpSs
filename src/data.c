@@ -1,6 +1,7 @@
 #include "data.h"
 #include "utils.h"
 #include "image.h"
+#include "list.h"
 #include "cuda.h"
 
 #include <stdio.h>
